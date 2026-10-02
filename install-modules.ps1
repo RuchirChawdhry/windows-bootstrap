@@ -1,3 +1,5 @@
+#Requires -Version 7.0
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
@@ -6,12 +8,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$moduleDir = Join-Path $HOME 'Tools\PowerShell\Modules'
+$moduleDir = "$HOME\Tools\PowerShell\Modules"
 New-Item -ItemType Directory -Path $moduleDir -Force | Out-Null
-$userModulePath = [Environment]::GetEnvironmentVariable('PSModulePath', 'User')
-$userModulePaths = @($moduleDir) + @($userModulePath -split ';' | Where-Object { $_ -and $_ -ne $moduleDir })
-[Environment]::SetEnvironmentVariable('PSModulePath', ($userModulePaths -join ';'), 'User')
-$env:PSModulePath = (@($moduleDir) + @($env:PSModulePath -split ';' | Where-Object { $_ -and $_ -ne $moduleDir })) -join ';'
+
+$userPaths = [Environment]::GetEnvironmentVariable('PSModulePath', 'User') -split ';'
+if ($moduleDir -notin $userPaths) {
+    $userModulePath = (@($moduleDir) + $userPaths | Where-Object { $_ }) -join ';'
+    [Environment]::SetEnvironmentVariable('PSModulePath', $userModulePath, 'User')
+}
+if ($moduleDir -notin ($env:PSModulePath -split ';')) {
+    $env:PSModulePath = "$moduleDir;$env:PSModulePath"
+}
 
 if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue |
         Where-Object { $_.Version -ge [version]'2.8.5.201' })) {
@@ -20,10 +27,15 @@ if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyCo
 
 # Save-Module supports a custom destination; Install-Module -Scope CurrentUser
 # still targets Documents. Use this script for additional modules here too.
+$saveOptions = @{
+    Repository = 'PSGallery'
+    Path       = $moduleDir
+    Force      = $true
+}
 foreach ($moduleName in $Name) {
-    $modulePath = Join-Path $moduleDir $moduleName
+    $modulePath = "$moduleDir\$moduleName"
     if (-not (Test-Path -LiteralPath $modulePath)) {
-        Save-Module -Name $moduleName -Repository PSGallery -Path $moduleDir -Force
+        Save-Module -Name $moduleName @saveOptions
     }
     # Keep commands available to bootstrap.ps1 after this script returns.
     Import-Module $modulePath -Global -Force
