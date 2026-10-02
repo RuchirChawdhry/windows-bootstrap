@@ -1,0 +1,22 @@
+# Scoop: portable tools, command-line utilities, and Java distributions.
+# Installed under HOME\Tools\Scoop. Git is installed automatically for buckets.
+scoop:
+  buckets:
+    - extras
+    - nirsoft
+    - java
+  packages: []
+  # Replace [] with your list, for example:
+  # packages:
+  #   - main/7zip
+  #   - main/ripgrep
+  #   - java/temurin21-jdk
+
+# WinGet: desktop apps and software that needs a standard Windows installer.
+# Use exact package IDs from `winget search`; installer locations are app-specific.
+winget:
+  packages: []
+  # packages:
+  #   - Microsoft.PowerShell
+  #   - Microsoft.VisualStudioCode
+  #   - Mozilla.Firefox
