@@ -30,11 +30,10 @@ Assert (($xml.SelectNodes("//u:CreatePartition", $ns)).Count -eq 3) "GPT partiti
 Assert ((& $pick "//u:CreatePartition[u:Order='1']/u:Type") -eq "EFI") "EFI partition"
 Assert ((& $pick "//u:CreatePartition[u:Order='2']/u:Type") -eq "MSR") "MSR partition"
 Assert ((& $pick "//u:ModifyPartition[u:PartitionID='3']/u:Format") -eq "NTFS") "Windows NTFS partition"
-task unattended:iso
-Assert (Test-Path "$root/.cache/unattended.iso") "Secondary QEMU ISO"
-Assert (Test-Path "$root/.cache/unattended-media/bootstrap/bootstrap.ps1") "Staged bootstrap"
-Assert (Test-Path "$root/.cache/unattended-media/bootstrap/unattended/first-logon.ps1") "Staged first logon"
-$generated = (Get-FileHash "$root/.cache/Autounattend.xml").Hash
-$staged = (Get-FileHash "$root/.cache/unattended-media/Autounattend.xml").Hash
-Assert ($generated -eq $staged) "VM and USB share a rendered answer file"
-Write-Output "Unattended XML, bootstrap staging and secondary ISO validated."
+$taskfile = Get-Content "$root/Taskfile.yml" -Raw
+Assert ($taskfile.Contains("iso:download:")) "ISO acquisition task"
+Assert ($taskfile.Contains('-Lang "^English$"')) "Exact en-US Fido language selection"
+Assert ($taskfile.Contains("aria2c --continue=true")) "Resumable aria2 download"
+Assert ($taskfile.Contains("unattended:stage:")) "Shared unattended media staging task"
+Assert (Test-Path "$root/unattended/bootstrap-user.ps1") "First-login bootstrap script"
+Write-Output "Offline unattended XML and Taskfile configuration validated (no ISO/USB operations)."

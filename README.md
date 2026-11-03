@@ -34,7 +34,7 @@ Short aliases are available: `task setup` / `task bs`, `task install`, `task rei
 
 [Windows bootstrap](.github/workflows/windows-bootstrap.yml) calls the central [reusable CI workflow](https://github.com/RuchirChawdhry/ci-workflows/blob/main/.github/workflows/windows-bootstrap.yml) on every PR and push to `main`. The smoke job executes the real `bootstrap.ps1` and `Taskfile.yml` on a clean `windows-2025` runner using the repository's **single** `.app-config.yml`, then verifies Scoop, Yayaml, the installed packages and Taskfile commands.
 
-To attempt the **complete** `.app-config.yml` inventory, open Actions → Windows bootstrap → Run workflow → enable **full**. This installs WinGet and GUI packages as well. Hosted `windows-2025` runs Windows Server 2025 rather than desktop Windows 11, so full GUI / Microsoft Store installs may be unsupported there; a smoke pass does not validate those packages.
+GitHub Actions runs the existing bootstrap workflow plus an **offline XML-only** unattended validation job. It never downloads the Windows ISO, creates an unattended ISO, launches QEMU, or prepares USB drives. Hosted `windows-2025` runs Windows Server 2025 rather than desktop Windows 11, so some configured Microsoft Store and GUI packages may be unsupported.
 
 ## Unattended Windows 11 Pro installation
 
@@ -67,10 +67,18 @@ task install:usb
 
 It detects a single non-system USB disk automatically, prints its model/size, and requires typing `ERASE N` before destroying its contents. When multiple USB disks are present, set `$env:USB_DISK = 'N'` to choose the **USB installer drive**. This number is unrelated to `TARGET_DISK`. It creates an MBR/FAT32 bootable partition (at most 32 GiB), mounts the Windows ISO, copies installation files, splits oversized `sources/install.wim` to `install.swm` parts with DISM, and includes `Autounattend.xml` plus `bootstrap/` at the root. It does not use Rufus.
 
-Both commands accept a different local ISO with `task install:vm ISO=/path/to/windows.iso` or `task install:usb ISO=C:/path/to/windows.iso`. ISO downloading is intentionally independent; place a licensed Windows 11 ISO at `.cache/windows.iso` or pass `ISO`. No Microsoft download link is embedded.
+**ISO acquisition (Windows host, PowerShell 7 and aria2):** `task iso:download` uses the official [Rufus Fido](https://github.com/pbatard/Fido) PowerShell script to get a fresh Microsoft ISO URL, then downloads with aria2 into `.cache/windows.iso`. Fido is fetched at runtime into `.cache/Fido.ps1` and reused. The command requests `-Win 11 -Rel Latest -Ed Pro -Lang '^English$' -Arch x64 -GetUrl`: plain **English** is **en-US**, whereas **English International** is the UK variant. Existing finished ISOs are reused; aria2 can resume interrupted downloads. No expiring Microsoft download URL is committed.
+
+```powershell
+task iso:download
+$env:TEMP_PASSWORD = 'Disposable-Strong-Password!'
+task install:usb
+```
+
+ISO acquisition is optional and separate from installation, particularly for Ubuntu-hosted QEMU (Fido officially targets Windows). The installation tasks consume `.cache/windows.iso` or an explicitly supplied path: `task install:vm ISO=/path/to/windows.iso` or `task install:usb ISO=C:/path/to/windows.iso`.
 
 The installed machine must have Internet access for unattended WinGet installation of PowerShell 7 and for the existing Scoop/WinGet bootstrap. FirstLogonCommands disables subsequent auto-logins immediately and schedules the existing bootstrap in the unelevated interactive `PC` session (required by Scoop). See the `PC` user's `AppData\Local\windows-bootstrap.log`. On failure the password **is not expired** and the PC **does not reboot** automatically; fix connectivity/the issue and rerun `C:\windows-bootstrap\unattended\first-logon.ps1` as administrator. On success, the account is marked password-expired before reboot. Keep the USB/secondary ISO connected until the first login stages have completed.
 
 `Autounattend.xml` contains the **disposable** password in plaintext (required by Windows Setup) and is also cached by Windows Setup. The permanent password is **never collected or written by this repository**. Keep installer media secure, and delete `.cache/` and securely erase/reformat the USB when provisioning is finished. Generated files are Git-ignored.
 
-Validate the rendered XML and lifecycle wiring with `task unattended:render` and `pwsh -File tests/unattended.ps1`. The CI validates structure, media staging and secondary ISO creation; end-to-end Windows 11 Setup behavior requires a real VM or physical install.
+Validate the rendered XML and lifecycle wiring with `task unattended:render` and `pwsh -File tests/unattended.ps1`. CI only validates XML and task wiring offline, without downloading/building ISOs or preparing USB drives; end-to-end Windows 11 Setup behavior requires a real VM or physical install.
