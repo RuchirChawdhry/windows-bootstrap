@@ -26,11 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Task
-        run: |
-          go install github.com/go-task/task/v3/cmd/task@v3.45.4
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
-      - name: Render and validate XML without ISO/USB operations
+      - name: Validate XML template without invoking Task
         shell: pwsh
         run: ./tests/unattended.ps1
 
