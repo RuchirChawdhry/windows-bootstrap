@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated unattended installation media (including the disposable password)
+/.cache/
+/Autounattend.xml

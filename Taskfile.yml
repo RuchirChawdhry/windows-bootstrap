@@ -2,6 +2,7 @@ version: '3'
 
 vars:
   PS: pwsh -NoProfile -Command
+  ISO: '{{.ROOT_DIR}}/.cache/windows.iso'
   LOAD: >-
     $env:SCOOP = "$HOME/Tools/Scoop";
     $env:Path = "$env:SCOOP/shims;$env:Path";
@@ -112,7 +113,7 @@ tasks:
         {{.PS}} '{{.LOAD}}
           if ($config.winget.enabled) {
             $config.winget.apps | ForEach-Object {
-              winget install --id $_ -e --accept-package-agreements --accept-source-agreements
+              winget install --id $_ -e --silent --disable-interactivity --accept-package-agreements --accept-source-agreements
             }
           }
         '
@@ -188,4 +189,151 @@ tasks:
         {{.PS}} '{{.LOAD}}
           if ($config.scoop.enabled) { scoop checkup; scoop status }
           if ($config.winget.enabled) { winget list }
+        '
+
+  unattended:render:
+    desc: Render a private Windows answer file from runtime values
+    aliases: [unattend:render]
+    silent: true
+    cmds:
+      - |
+        {{.PS}} '
+          New-Item "{{.ROOT_DIR}}/.cache" -ItemType Directory -Force | Out-Null
+          $xml = Get-Content "{{.ROOT_DIR}}/unattended/Autounattend.xml.tmpl" -Raw
+          $name = $env:COMPUTER_NAME ? $env:COMPUTER_NAME : ("PC-" + [guid]::NewGuid().ToString("N").Substring(0, 8).ToUpper())
+          if (!$env:TEMP_PASSWORD) { throw "TEMP_PASSWORD is required" }
+          @{
+            COMPUTER_NAME = $name
+            TEMP_PASSWORD = $env:TEMP_PASSWORD
+            TARGET_DISK = $env:TARGET_DISK ? $env:TARGET_DISK : "0"
+          }.GetEnumerator() | ForEach-Object {
+            $xml = $xml.Replace(("{" * 2 + $_.Key + "}" * 2), [Security.SecurityElement]::Escape($_.Value))
+          }
+          $xml | Set-Content "{{.ROOT_DIR}}/.cache/Autounattend.xml" -Encoding utf8
+          [xml](Get-Content "{{.ROOT_DIR}}/.cache/Autounattend.xml" -Raw) | Out-Null
+        '
+
+  unattended:stage:
+    internal: true
+    silent: true
+    cmds:
+      - task: unattended:render
+      - |
+        {{.PS}} '
+          $media = "{{.ROOT_DIR}}/.cache/unattended-media"
+          New-Item "$media/bootstrap" -ItemType Directory -Force | Out-Null
+          Get-ChildItem "{{.ROOT_DIR}}" -Force |
+            Where-Object { $_.Name -notin @(".git", ".cache") } |
+            Copy-Item -Destination "$media/bootstrap" -Recurse -Force
+          Copy-Item "{{.ROOT_DIR}}/.cache/Autounattend.xml" "$media/Autounattend.xml" -Force
+        '
+
+  unattended:iso:
+    desc: Build a secondary ISO with Autounattend.xml and the bootstrap files
+    aliases: [unattend:iso]
+    silent: true
+    cmds:
+      - task: unattended:stage
+      - |
+        {{.PS}} '
+          $media = "{{.ROOT_DIR}}/.cache/unattended-media"
+          $iso = "{{.ROOT_DIR}}/.cache/unattended.iso"
+          if ($IsWindows) {
+            oscdimg -n -m $media $iso
+          } else {
+            xorriso -as mkisofs -J -R -V AUTOUNATTEND -o $iso $media
+          }
+          exit $LASTEXITCODE
+        '
+
+  install:vm:
+    desc: Provision a Windows 11 Pro QEMU/KVM virtual machine (Linux host)
+    aliases: [vm:install]
+    silent: true
+    cmds:
+      - task: unattended:iso
+      - |
+        {{.PS}} '
+          $cache = "{{.ROOT_DIR}}/.cache"
+          $disk = "$cache/windows.qcow2"
+          $vars = "$cache/OVMF_VARS.fd"
+          $firmware = $env:OVMF_CODE ? $env:OVMF_CODE : "/usr/share/OVMF/OVMF_CODE_4M.fd"
+          $baseVars = $env:OVMF_VARS ? $env:OVMF_VARS : "/usr/share/OVMF/OVMF_VARS_4M.fd"
+          $windows = "{{.ISO}}"
+          if (!(Test-Path $disk)) { qemu-img create -f qcow2 $disk 80G }
+          if (!(Test-Path $vars)) { Copy-Item $baseVars $vars }
+          New-Item "$cache/tpm" -ItemType Directory -Force | Out-Null
+          swtpm socket --tpm2 --tpmstate "dir=$cache/tpm" --ctrl "type=unixio,path=$cache/swtpm.sock" --daemon
+          $qemu = @(
+            "-machine", "q35,accel=kvm", "-cpu", "host", "-smp", "4", "-m", "8192",
+            "-drive", "if=pflash,format=raw,readonly=on,file=$firmware",
+            "-drive", "if=pflash,format=raw,file=$vars",
+            "-device", "ich9-ahci,id=sata",
+            "-drive", "if=none,id=disk,format=qcow2,file=$disk",
+            "-device", "ide-hd,drive=disk,bus=sata.0",
+            "-drive", "if=none,id=windows,media=cdrom,readonly=on,file=$windows",
+            "-device", "ide-cd,drive=windows,bus=sata.1",
+            "-drive", "if=none,id=unattended,media=cdrom,readonly=on,file=$cache/unattended.iso",
+            "-device", "ide-cd,drive=unattended,bus=sata.2",
+            "-chardev", "socket,id=chrtpm,path=$cache/swtpm.sock",
+            "-tpmdev", "emulator,id=tpm0,chardev=chrtpm",
+            "-device", "tpm-tis,tpmdev=tpm0",
+            "-nic", "user,model=e1000", "-boot", "once=d",
+            "-display", "none", "-vnc", "127.0.0.1:1"
+          )
+          & qemu-system-x86_64 @qemu
+          exit $LASTEXITCODE
+        '
+
+  usb:prepare:
+    desc: Erase and format the selected USB installer drive (administrator)
+    aliases: [usb:format]
+    silent: true
+    cmds:
+      - |
+        {{.PS}} '
+          $disks = @(Get-Disk | Where-Object {
+            $_.BusType -eq "USB" -and !$_.IsBoot -and !$_.IsSystem -and
+            (!$env:USB_DISK -or $_.Number -eq [int]$env:USB_DISK)
+          })
+          if ($disks.Count -ne 1) { throw "Expected one USB disk. Set USB_DISK to select among multiple candidates." }
+          $disk = $disks[0]
+          $choice = Read-Host "Erase USB disk $($disk.Number) ($($disk.FriendlyName), $([math]::Round($disk.Size / 1GB, 1)) GiB)? Type ERASE $($disk.Number)"
+          if ($choice -ne "ERASE $($disk.Number)") { throw "USB erase cancelled" }
+          Clear-Disk -Number $disk.Number -RemoveData -RemoveOEM -Confirm:$false
+          Initialize-Disk -Number $disk.Number -PartitionStyle MBR
+          $size = [math]::Min($disk.Size - 16MB, 32GB - 16MB)
+          New-Partition -DiskNumber $disk.Number -Size $size -IsActive -AssignDriveLetter |
+            Format-Volume -FileSystem FAT32 -NewFileSystemLabel WINSETUP -Confirm:$false | Out-Null
+        '
+
+  install:usb:
+    desc: Create a bootable FAT32 Windows installer without Rufus (administrator)
+    aliases: [usb:install]
+    silent: true
+    cmds:
+      - task: unattended:stage
+      - task: usb:prepare
+      - |
+        {{.PS}} '
+          $disk = Get-Disk | Where-Object {
+            $_.BusType -eq "USB" -and !$_.IsBoot -and !$_.IsSystem -and
+            (!$env:USB_DISK -or $_.Number -eq [int]$env:USB_DISK)
+          }
+          $usb = ((Get-Partition -DiskNumber $disk.Number | Get-Volume).DriveLetter) + ":\"
+          $src = ((Mount-DiskImage -ImagePath "{{.ISO}}" -PassThru | Get-Volume).DriveLetter) + ":\"
+          robocopy $src $usb /E /XF install.wim /NFL /NDL /NJH /NJS /NP | Out-Null
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          $wim = Join-Path $src "sources/install.wim"
+          if (Test-Path $wim) {
+            if ((Get-Item $wim).Length -gt 4GB) {
+              dism /Split-Image "/ImageFile:$wim" "/SWMFile:$(Join-Path $usb "sources/install.swm")" /FileSize:3800
+              if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            } else {
+              Copy-Item $wim (Join-Path $usb "sources/install.wim")
+            }
+          }
+          Copy-Item "{{.ROOT_DIR}}/.cache/Autounattend.xml" (Join-Path $usb "Autounattend.xml")
+          Copy-Item "{{.ROOT_DIR}}/.cache/unattended-media/bootstrap" $usb -Recurse
+          Dismount-DiskImage -ImagePath "{{.ISO}}"
         '

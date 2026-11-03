@@ -25,3 +25,17 @@ jobs:
       config-path: ${{ inputs.full && '.app-config.yml' || 'tests/ci-app-config.yml' }}
       runs-on: windows-2025
       timeout-minutes: ${{ inputs.full && 300 || 60 }}
+
+  unattended:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Task
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.45.4
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+      - name: Install ISO tooling
+        run: sudo apt-get update && sudo apt-get install -y xorriso
+      - name: Validate unattended installation
+        shell: pwsh
+        run: ./tests/unattended.ps1
