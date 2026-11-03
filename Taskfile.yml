@@ -172,7 +172,7 @@ tasks:
           if ($config.scoop.enabled) {
             {{.APPS}}
             $apps += $config.languages | ForEach-Object { "main/$_" }
-            $apps | ForEach-Object -Parallel { scoop download $_ } -ThrottleLimit 6
+            $apps | ForEach-Object -Parallel { pwsh -NoProfile -Command "scoop download '$_'" } -ThrottleLimit 6
           }
         '
 
