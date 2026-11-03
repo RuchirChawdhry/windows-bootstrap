@@ -1,0 +1,83 @@
+version: '3'
+
+vars:
+  APPS: pwsh -NoProfile -File scripts/apps.ps1
+
+tasks:
+  default:
+    desc: List available operations
+    cmds:
+      - task --list
+
+  bootstrap:
+    desc: Provision package managers, applications, and languages
+    cmds:
+      - task: managers:install
+      - task: buckets:add
+      - task: cache:prefetch
+      - task: apps:install
+      - task: languages:install
+
+  managers:install:
+    desc: Provision enabled package managers and YAML support
+    cmds:
+      - '{{.APPS}} managers'
+
+  buckets:add:
+    desc: Add configured Scoop buckets
+    cmds:
+      - '{{.APPS}} buckets'
+
+  apps:install:
+    desc: Install configured apps sequentially
+    cmds:
+      - task: apps:scoop
+      - task: apps:winget
+
+  apps:scoop:
+    desc: Install configured Scoop apps
+    cmds:
+      - '{{.APPS}} scoop-install'
+
+  apps:winget:
+    desc: Install configured WinGet apps sequentially
+    cmds:
+      - '{{.APPS}} winget-install'
+
+  apps:reinstall:
+    desc: Reinstall configured apps (skips the running Task executable)
+    cmds:
+      - task: cache:prefetch
+      - '{{.APPS}} scoop-reinstall'
+      - '{{.APPS}} winget-reinstall'
+
+  apps:upgrade:
+    desc: Upgrade configured apps
+    cmds:
+      - '{{.APPS}} scoop-upgrade'
+      - '{{.APPS}} winget-upgrade'
+
+  apps:status:
+    desc: Show installed applications
+    cmds:
+      - '{{.APPS}} status'
+
+  languages:install:
+    desc: Install configured programming languages via Scoop
+    cmds:
+      - '{{.APPS}} languages'
+
+  cache:prefetch:
+    desc: Download Scoop packages concurrently with aria2
+    cmds:
+      - '{{.APPS}} prefetch'
+
+  cache:clear:
+    desc: Clear the Scoop download cache
+    cmds:
+      - '{{.APPS}} cache-clear'
+
+  doctor:
+    desc: Check managers, buckets, and configured installations
+    cmds:
+      - '{{.APPS}} doctor'
