@@ -17,7 +17,7 @@ vars:
 tasks:
   default:
     aliases: [help]
-    cmds: [task --list]
+    cmds: [task --list-all]
 
   bootstrap:
     aliases: [setup, bs]
