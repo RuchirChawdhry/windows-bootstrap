@@ -1,83 +1,174 @@
 version: '3'
 
 vars:
-  APPS: pwsh -NoProfile -File scripts/apps.ps1
+  PS: pwsh -NoProfile -Command
+  LOAD: >-
+    $env:SCOOP = "$HOME/Tools/Scoop";
+    $env:Path = "$env:SCOOP/shims;$env:Path";
+    $env:PSModulePath = "$HOME/Tools/PowerShell/Modules;$env:PSModulePath";
+    Import-Module Yayaml;
+    $config = Get-Content "$HOME/.app-config.yml" -Raw | ConvertFrom-Yaml;
+  APPS: >-
+    $apps = $config.scoop.apps.GetEnumerator() | ForEach-Object {
+      $bucket = $_.Key;
+      $_.Value | ForEach-Object { "$bucket/$_" }
+    };
 
 tasks:
   default:
-    desc: List available operations
-    cmds:
-      - task --list
+    aliases: [help]
+    cmds: [task --list]
 
   bootstrap:
-    desc: Provision package managers, applications, and languages
+    aliases: [setup, bs]
     cmds:
+      - task: config:init
+      - task: modules:install
       - task: managers:install
       - task: buckets:add
       - task: cache:prefetch
       - task: apps:install
       - task: languages:install
 
-  managers:install:
-    desc: Provision enabled package managers and YAML support
+  config:init:
+    aliases: [config, cfg]
     cmds:
-      - '{{.APPS}} managers'
+      - >-
+        {{.PS}} '(Test-Path "$HOME/.app-config.yml") ? $null :
+        (Copy-Item "{{.ROOT_DIR}}/.app-config.yml" "$HOME/.app-config.yml")'
+
+  modules:install:
+    aliases: [modules, mods]
+    cmds:
+      - pwsh -NoProfile -File "{{.ROOT_DIR}}/install-modules.ps1" -Name Yayaml
+
+  managers:install:
+    aliases: [managers, pm]
+    cmds:
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) {
+            (Get-Command scoop -EA Ignore) ? $null : (irm get.scoop.sh | iex)
+            scoop install git aria2
+          }
+          if ($config.winget.enabled -and -not (Get-Command winget -EA Ignore)) {
+            & "{{.ROOT_DIR}}/install-modules.ps1" -Name Microsoft.WinGet.Client
+            Import-Module Microsoft.WinGet.Client
+            Repair-WinGetPackageManager -AllUsers
+          }
+        '
 
   buckets:add:
-    desc: Add configured Scoop buckets
+    aliases: [buckets]
     cmds:
-      - '{{.APPS}} buckets'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) {
+            $config.scoop.buckets | ForEach-Object {
+              $name = ($_ -like "https://*") ? "ruchir" : $_
+              ($name -eq "ruchir") ? (scoop bucket add $name $_) : (scoop bucket add $name)
+            }
+          }
+        '
 
   apps:install:
-    desc: Install configured apps sequentially
+    aliases: [install, apps:i]
     cmds:
       - task: apps:scoop
       - task: apps:winget
 
   apps:scoop:
-    desc: Install configured Scoop apps
+    aliases: [scoop:install]
     cmds:
-      - '{{.APPS}} scoop-install'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) {
+            {{.APPS}}
+            $apps | ForEach-Object { scoop install $_ }
+          }
+        '
 
   apps:winget:
-    desc: Install configured WinGet apps sequentially
+    aliases: [winget:install]
     cmds:
-      - '{{.APPS}} winget-install'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.winget.enabled) {
+            $config.winget.apps | ForEach-Object {
+              winget install --id $_ -e --accept-package-agreements --accept-source-agreements
+            }
+          }
+        '
 
   apps:reinstall:
-    desc: Reinstall configured apps (skips the running Task executable)
+    aliases: [reinstall, apps:r]
     cmds:
       - task: cache:prefetch
-      - '{{.APPS}} scoop-reinstall'
-      - '{{.APPS}} winget-reinstall'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) {
+            {{.APPS}}
+            $apps | Where-Object { $_ -ne "main/task" } | ForEach-Object { scoop update --force $_ }
+          }
+          if ($config.winget.enabled) {
+            $config.winget.apps | ForEach-Object { winget install --id $_ -e --force }
+          }
+        '
 
   apps:upgrade:
-    desc: Upgrade configured apps
+    aliases: [upgrade, apps:u]
     cmds:
-      - '{{.APPS}} scoop-upgrade'
-      - '{{.APPS}} winget-upgrade'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) {
+            scoop update
+            {{.APPS}}
+            $apps | Where-Object { $_ -ne "main/task" } | ForEach-Object { scoop update $_ }
+          }
+          if ($config.winget.enabled) {
+            $config.winget.apps | ForEach-Object { winget upgrade --id $_ -e }
+          }
+        '
 
   apps:status:
-    desc: Show installed applications
+    aliases: [status, apps:ls]
     cmds:
-      - '{{.APPS}} status'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) { scoop list }
+          if ($config.winget.enabled) { winget list }
+        '
 
   languages:install:
-    desc: Install configured programming languages via Scoop
+    aliases: [languages, langs]
     cmds:
-      - '{{.APPS}} languages'
+      - |
+        {{.PS}} '{{.LOAD}}
+          $config.languages | ForEach-Object { scoop install "main/$_" }
+        '
 
   cache:prefetch:
-    desc: Download Scoop packages concurrently with aria2
+    aliases: [prefetch, cache:download]
     cmds:
-      - '{{.APPS}} prefetch'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) {
+            {{.APPS}}
+            $apps += $config.languages | ForEach-Object { "main/$_" }
+            $apps | ForEach-Object -Parallel { scoop download $_ } -ThrottleLimit 6
+          }
+        '
 
   cache:clear:
-    desc: Clear the Scoop download cache
+    aliases: [clean, cache:clean]
     cmds:
-      - '{{.APPS}} cache-clear'
+      - '{{.PS}} ''{{.LOAD}} scoop cache rm "*"'''
 
   doctor:
-    desc: Check managers, buckets, and configured installations
+    aliases: [check, health]
     cmds:
-      - '{{.APPS}} doctor'
+      - |
+        {{.PS}} '{{.LOAD}}
+          if ($config.scoop.enabled) { scoop checkup; scoop status }
+          if ($config.winget.enabled) { winget list }
+        '

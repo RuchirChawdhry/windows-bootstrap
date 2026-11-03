@@ -1,20 +1,28 @@
 # windows-bootstrap
 
-Opinionated Windows 11 provisioning with [Task](https://taskfile.dev/), PowerShell 7, WinGet, and Scoop. **`.apps-config.yml` is the only application inventory.**
+Minimal Windows provisioning with [Task](https://taskfile.dev), PowerShell 7.4+, Yayaml, Scoop and WinGet.
 
-On a new PC, run `pwsh -NoProfile -File .\bootstrap.ps1` once to install Scoop and Task and execute the bootstrap. After that, use Task directly from the repository:
+**Configuration:** `$HOME/.app-config.yml` (`%USERPROFILE%\.app-config.yml`). The tracked `.app-config.yml` is the initial template; `task config:init` copies it once without overwriting your profile file.
 
-| Command | Purpose |
+**First run:**
+
+```powershell
+pwsh -NoProfile -File .\bootstrap.ps1
+```
+
+Then run `task --list` to discover operations:
+
+| Task | Purpose |
 | --- | --- |
-| `task bootstrap` | Install managers, buckets, cached apps, and languages |
-| `task apps:install` | Install all configured apps sequentially |
-| `task apps:reinstall` | Force-reinstall apps without uninstalling their data; skips the active Task binary |
-| `task apps:upgrade` | Upgrade configured applications |
-| `task apps:status` | Show installed Scoop and WinGet applications |
-| `task languages:install` | Install Python, Go, and Lua |
-| `task cache:prefetch` | Download configured Scoop packages in parallel using aria2 |
-| `task cache:clear` | Clear Scoop's download cache |
-| `task doctor` | Check Scoop and verify configured applications |
-| `task --list` | Discover all commands |
+| `task bootstrap` | Provision managers, buckets, apps and languages |
+| `task apps:install` | Install configured applications sequentially |
+| `task apps:reinstall` | Force-reinstall configured apps (skips Task itself) |
+| `task apps:upgrade` | Upgrade configured apps |
+| `task apps:status` | Show installed apps |
+| `task cache:prefetch` | Download Scoop packages concurrently (6 workers, aria2) |
+| `task cache:clear` | Clear Scoop download cache |
+| `task doctor` | Display Scoop health/status and installed WinGet packages |
 
-Scoop buckets and package IDs are read directly from `.apps-config.yml`; the custom bucket is registered as `ruchir`. WinGet installs run one at a time. The bootstrap and reinstall commands do not uninstall unrelated applications.
+The Taskfile uses shared PowerShell statements via `vars` and directly imports **Yayaml** to read the user-profile YAML. `install-modules.ps1` stores modules in `$HOME/Tools/PowerShell/Modules`; Scoop lives in `$HOME/Tools/Scoop`. No separate app dispatcher or duplicate package list is used.
+
+Short aliases are available: `task setup` / `task bs`, `task install`, `task reinstall`, `task upgrade`, `task status`, `task prefetch`, `task clean`, and `task check`. Use `task help` to display the list. Namespaced shortcuts include `task apps:i`, `task apps:r`, and `task apps:u`.

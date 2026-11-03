@@ -1,3 +1,5 @@
+version: 1
+
 winget:
   enabled: true
   apps:
@@ -10,11 +12,13 @@ winget:
 
 scoop:
   enabled: true
+
   buckets:
     - extras
     - nirsoft
     - java
     - https://github.com/RuchirChawdhry/scoop-bucket
+
   apps:
     main:
       - git
