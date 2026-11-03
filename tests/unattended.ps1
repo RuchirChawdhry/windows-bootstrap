@@ -25,4 +25,16 @@ Assert (!$xml.OuterXml.Contains("SkipMachineOOBE")) "No SkipMachineOOBE"
 Assert (!(Get-Content "$PSScriptRoot/../.cache/Autounattend.xml" -Raw).Contains("{{")) "No unrendered placeholders"
 Assert ((Get-Content "$PSScriptRoot/../unattended/first-logon.ps1" -Raw) -match "PasswordExpired = 1") "Password expiration"
 Assert ((Get-Content "$PSScriptRoot/../unattended/first-logon.ps1" -Raw) -match "LastTaskResult") "Bootstrap success gate"
-Write-Output "Unattended XML and provisioning invariants validated."
+$root = Resolve-Path "$PSScriptRoot/.."
+Assert (($xml.SelectNodes("//u:CreatePartition", $ns)).Count -eq 3) "GPT partition count"
+Assert ((& $pick "//u:CreatePartition[u:Order='1']/u:Type") -eq "EFI") "EFI partition"
+Assert ((& $pick "//u:CreatePartition[u:Order='2']/u:Type") -eq "MSR") "MSR partition"
+Assert ((& $pick "//u:ModifyPartition[u:PartitionID='3']/u:Format") -eq "NTFS") "Windows NTFS partition"
+task unattended:iso
+Assert (Test-Path "$root/.cache/unattended.iso") "Secondary QEMU ISO"
+Assert (Test-Path "$root/.cache/unattended-media/bootstrap/bootstrap.ps1") "Staged bootstrap"
+Assert (Test-Path "$root/.cache/unattended-media/bootstrap/unattended/first-logon.ps1") "Staged first logon"
+$generated = (Get-FileHash "$root/.cache/Autounattend.xml").Hash
+$staged = (Get-FileHash "$root/.cache/unattended-media/Autounattend.xml").Hash
+Assert ($generated -eq $staged) "VM and USB share a rendered answer file"
+Write-Output "Unattended XML, bootstrap staging and secondary ISO validated."

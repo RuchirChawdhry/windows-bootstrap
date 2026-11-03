@@ -34,6 +34,8 @@ jobs:
         run: |
           go install github.com/go-task/task/v3/cmd/task@v3.45.4
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
+      - name: Install ISO tooling
+        run: sudo apt-get update && sudo apt-get install -y xorriso
       - name: Validate unattended installation
         shell: pwsh
         run: ./tests/unattended.ps1

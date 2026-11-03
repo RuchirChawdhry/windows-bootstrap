@@ -73,4 +73,4 @@ The installed machine must have Internet access for unattended WinGet installati
 
 `Autounattend.xml` contains the **disposable** password in plaintext (required by Windows Setup) and is also cached by Windows Setup. The permanent password is **never collected or written by this repository**. Keep installer media secure, and delete `.cache/` and securely erase/reformat the USB when provisioning is finished. Generated files are Git-ignored.
 
-Validate the rendered XML and lifecycle wiring with `task unattended:render` and `pwsh -File tests/unattended.ps1`. The CI validates structure; end-to-end Windows 11 Setup behavior requires a real VM or physical install.
+Validate the rendered XML and lifecycle wiring with `task unattended:render` and `pwsh -File tests/unattended.ps1`. The CI validates structure, media staging and secondary ISO creation; end-to-end Windows 11 Setup behavior requires a real VM or physical install.

@@ -113,7 +113,7 @@ tasks:
         {{.PS}} '{{.LOAD}}
           if ($config.winget.enabled) {
             $config.winget.apps | ForEach-Object {
-              winget install --id $_ -e --accept-package-agreements --accept-source-agreements
+              winget install --id $_ -e --silent --disable-interactivity --accept-package-agreements --accept-source-agreements
             }
           }
         '
