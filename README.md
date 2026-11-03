@@ -65,7 +65,7 @@ It uses `.cache/windows.iso`, creates `.cache/windows.qcow2` (80 GiB), a persist
 task install:usb
 ```
 
-It detects a single non-system USB disk automatically, prints its model/size, and requires typing `ERASE N` before destroying its contents. When multiple USB disks are present, set `$env:USB_DISK = 'N'` to choose the **USB installer drive**. This number is unrelated to `TARGET_DISK`. It creates an MBR/FAT32 bootable partition (at most 32 GiB), mounts the Windows ISO, copies installation files, splits oversized `sources/install.wim` to `install.swm` parts with DISM, and includes `Autounattend.xml` plus `bootstrap/` at the root. It does not use Rufus.
+It first reuses or downloads the ISO, then detects a single non-system USB disk automatically, prints its model/size, and requires typing `ERASE N` before destroying its contents. When multiple USB disks are present, set `$env:USB_DISK = 'N'` to choose the **USB installer drive**. This number is unrelated to `TARGET_DISK`. It creates an MBR/FAT32 bootable partition (at most 32 GiB), mounts the Windows ISO, copies installation files, splits oversized `sources/install.wim` to `install.swm` parts with DISM, and includes `Autounattend.xml` plus `bootstrap/` at the root. It does not use Rufus.
 
 **ISO acquisition (Windows host, PowerShell 7 and aria2):** `task iso:download` uses the official [Rufus Fido](https://github.com/pbatard/Fido) PowerShell script to get a fresh Microsoft ISO URL, then downloads with aria2 into `.cache/windows.iso`. Fido is fetched at runtime into `.cache/Fido.ps1` and reused. The command requests `-Win 11 -Rel Latest -Ed Pro -Lang '^English$' -Arch x64 -GetUrl`: plain **English** is **en-US**, whereas **English International** is the UK variant. Existing finished ISOs are reused; aria2 can resume interrupted downloads. No expiring Microsoft download URL is committed.
 
@@ -75,7 +75,7 @@ $env:TEMP_PASSWORD = 'Disposable-Strong-Password!'
 task install:usb
 ```
 
-ISO acquisition is optional and separate from installation, particularly for Ubuntu-hosted QEMU (Fido officially targets Windows). The installation tasks consume `.cache/windows.iso` or an explicitly supplied path: `task install:vm ISO=/path/to/windows.iso` or `task install:usb ISO=C:/path/to/windows.iso`.
+ISO acquisition remains a standalone Task target, but `install:usb` automatically calls it and skips the download when the ISO exists. For Ubuntu-hosted QEMU, supply a local ISO: Fido officially targets Windows. The installation tasks consume `.cache/windows.iso` or an explicitly supplied path: `task install:vm ISO=/path/to/windows.iso` or `task install:usb ISO=C:/path/to/windows.iso`.
 
 The installed machine must have Internet access for unattended WinGet installation of PowerShell 7 and for the existing Scoop/WinGet bootstrap. FirstLogonCommands disables subsequent auto-logins immediately and schedules the existing bootstrap in the unelevated interactive `PC` session (required by Scoop). See the `PC` user's `AppData\Local\windows-bootstrap.log`. On failure the password **is not expired** and the PC **does not reboot** automatically; fix connectivity/the issue and rerun `C:\windows-bootstrap\unattended\first-logon.ps1` as administrator. On success, the account is marked password-expired before reboot. Keep the USB/secondary ISO connected until the first login stages have completed.
 
