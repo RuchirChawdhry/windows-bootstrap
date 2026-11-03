@@ -1,0 +1,27 @@
+name: Windows bootstrap
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Install every package from .app-config.yml (including WinGet and GUI apps)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-bootstrap-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  bootstrap:
+    uses: RuchirChawdhry/ci-workflows/.github/workflows/windows-bootstrap.yml@main
+    with:
+      config-path: ${{ inputs.full && '.app-config.yml' || 'tests/ci-app-config.yml' }}
+      runs-on: windows-2025
+      timeout-minutes: ${{ inputs.full && 300 || 60 }}
