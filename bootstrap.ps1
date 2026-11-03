@@ -1,15 +1,10 @@
-#Requires -Version 7.0
+#Requires -Version 7.4
 
-$ErrorActionPreference = 'Stop'
-$env:SCOOP = "$HOME\Tools\Scoop"
+$env:SCOOP = "$HOME/Tools/Scoop"
 [Environment]::SetEnvironmentVariable('SCOOP', $env:SCOOP, 'User')
-
-$scoop = "$env:SCOOP\shims\scoop.cmd"
-if (-not (Test-Path $scoop)) {
-    Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-    & ([scriptblock]::Create((Invoke-RestMethod 'https://get.scoop.sh'))) -ScoopDir $env:SCOOP
-}
-$env:Path = "$env:SCOOP\shims;$env:Path"
-if (-not (Get-Command task.exe -EA Ignore)) { & $scoop install task }
-& task.exe --taskfile "$PSScriptRoot\Taskfile.yml" bootstrap
+$env:Path = "$env:SCOOP/shims;$env:Path"
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+(Get-Command scoop -EA Ignore) ? $null : (irm get.scoop.sh | iex)
+(Get-Command task -EA Ignore) ? $null : (scoop install task)
+task --taskfile "$PSScriptRoot/Taskfile.yml" bootstrap
 exit $LASTEXITCODE
