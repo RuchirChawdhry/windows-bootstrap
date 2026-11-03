@@ -2,6 +2,7 @@ version: '3'
 
 vars:
   PS: pwsh -NoProfile -Command
+  ISO: '{{.ROOT_DIR}}/.cache/windows.iso'
   LOAD: >-
     $env:SCOOP = "$HOME/Tools/Scoop";
     $env:Path = "$env:SCOOP/shims;$env:Path";

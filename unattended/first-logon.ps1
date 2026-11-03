@@ -19,7 +19,7 @@ $name = "WindowsBootstrap-User"
 $action = New-ScheduledTaskAction -Execute $pwsh -Argument "-NoProfile -File ""$root\unattended\bootstrap-user.ps1"""
 $principal = New-ScheduledTaskPrincipal -UserId "$env:COMPUTERNAME\PC" -LogonType Interactive -RunLevel Limited
 Register-ScheduledTask -TaskName $name -Action $action -Principal $principal -Force | Out-Null
-$started = Get-Date
+$started = (Get-Date).AddSeconds(-2)
 Start-ScheduledTask -TaskName $name
 do {
     Start-Sleep 3
@@ -27,7 +27,7 @@ do {
     $state = (Get-ScheduledTask -TaskName $name).State
 } while ($info.LastRunTime -lt $started -or $state -ne "Ready")
 
-if ($info.LastTaskResult) { throw "Bootstrap failed ($($info.LastTaskResult)); inspect $root\bootstrap.log" }
+if ($info.LastTaskResult) { throw "Bootstrap failed ($($info.LastTaskResult)); inspect the PC user's AppData\Local\windows-bootstrap.log" }
 Unregister-ScheduledTask -TaskName $name -Confirm:$false
 $user = [ADSI]"WinNT://./PC,user"
 $user.PasswordExpired = 1
