@@ -231,7 +231,6 @@ tasks:
             $xml = $xml.Replace(("{" * 2 + $_.Key + "}" * 2), [Security.SecurityElement]::Escape($_.Value))
           }
           $xml | Set-Content "{{.ROOT_DIR}}/.cache/Autounattend.xml" -Encoding utf8
-          [xml](Get-Content "{{.ROOT_DIR}}/.cache/Autounattend.xml" -Raw) | Out-Null
           $media = "{{.ROOT_DIR}}/.cache/unattended-media"
           New-Item "$media/bootstrap" -ItemType Directory -Force | Out-Null
           Get-ChildItem "{{.ROOT_DIR}}" -Force |
