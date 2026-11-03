@@ -1,33 +1,26 @@
 # windows-bootstrap
 
-Opinionated Windows 11 provisioning with [Task](https://taskfile.dev/), PowerShell 7, WinGet, and Scoop.
+Minimal Windows provisioning with [Task](https://taskfile.dev), PowerShell 7.4+, Yayaml, Scoop and WinGet.
 
-`.app-config.yml` in this repository is a **first-run template**. The authoritative configuration is **`$HOME/.app-config.yml`** (`%USERPROFILE%\.app-config.yml`). `task config:init` copies the template only if the profile file does not exist. Every application task reads the profile file; subsequent edits to the repository template do not overwrite personal settings.
+**Configuration:** `$HOME/.app-config.yml` (`%USERPROFILE%\.app-config.yml`). The tracked `.app-config.yml` is the initial template; `task config:init` copies it once without overwriting your profile file.
 
-First run:
+**First run:**
 
 ```powershell
 pwsh -NoProfile -File .\bootstrap.ps1
 ```
 
-Then, from the repository:
+Then run `task --list` to discover operations:
 
-| Task | Action |
+| Task | Purpose |
 | --- | --- |
-| `task bootstrap` | Initialize config, install managers, buckets, applications, and languages |
-| `task config:init` | Copy the initial config into the user profile (once) |
+| `task bootstrap` | Provision managers, buckets, apps and languages |
 | `task apps:install` | Install configured applications sequentially |
-| `task apps:reinstall` | Force-reinstall apps (skips Scoop's active Task executable) |
-| `task apps:upgrade` | Upgrade configured applications |
-| `task apps:status` | Display installed applications |
-| `task managers:install` | Install enabled managers and aria2 |
-| `task buckets:add` | Add configured Scoop buckets |
-| `task languages:install` | Install Python, Go, and Lua |
-| `task cache:prefetch` | Download Scoop apps concurrently (six jobs, aria2) |
-| `task cache:clear` | Clear the Scoop cache |
-| `task doctor` | Check Scoop and configured application installation |
-| `task --list` | List available tasks |
+| `task apps:reinstall` | Force-reinstall configured apps (skips Task itself) |
+| `task apps:upgrade` | Upgrade configured apps |
+| `task apps:status` | Show installed apps |
+| `task cache:prefetch` | Download Scoop packages concurrently (6 workers, aria2) |
+| `task cache:clear` | Clear Scoop download cache |
+| `task doctor` | Display Scoop health/status and installed WinGet packages |
 
-Package operations stay inline in `Taskfile.yml`. The `install-modules.ps1` utility manages PowerShell modules. No separate application dispatcher is required.
-
-Scoop is installed in `$HOME/Tools/Scoop`, and the custom bucket is registered as `ruchir`. WinGet GUI installations remain sequential.
+The Taskfile uses shared PowerShell statements via `vars` and directly imports **Yayaml** to read the user-profile YAML. `install-modules.ps1` stores modules in `$HOME/Tools/PowerShell/Modules`; Scoop lives in `$HOME/Tools/Scoop`. No separate app dispatcher or duplicate package list is used.
