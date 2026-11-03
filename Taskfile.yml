@@ -223,10 +223,10 @@ tasks:
           New-Item "{{.ROOT_DIR}}/.cache" -ItemType Directory -Force | Out-Null
           $xml = Get-Content "{{.ROOT_DIR}}/unattended/Autounattend.xml.tmpl" -Raw
           $name = $env:COMPUTER_NAME ? $env:COMPUTER_NAME : ("PC-" + [guid]::NewGuid().ToString("N").Substring(0, 8).ToUpper())
-          if (!$env:TEMP_PASSWORD) { throw "TEMP_PASSWORD is required" }
+          $password = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)) + "aA1!"
           @{
             COMPUTER_NAME = $name
-            TEMP_PASSWORD = $env:TEMP_PASSWORD
+            TEMP_PASSWORD = $password
             TARGET_DISK = $env:TARGET_DISK ? $env:TARGET_DISK : "0"
           }.GetEnumerator() | ForEach-Object {
             $xml = $xml.Replace(("{" * 2 + $_.Key + "}" * 2), [Security.SecurityElement]::Escape($_.Value))
