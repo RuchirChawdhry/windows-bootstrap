@@ -5,11 +5,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      full:
-        description: Install every package from .app-config.yml (including WinGet and GUI apps)
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -22,6 +17,6 @@ jobs:
   bootstrap:
     uses: RuchirChawdhry/ci-workflows/.github/workflows/windows-bootstrap.yml@main
     with:
-      config-path: ${{ inputs.full && '.app-config.yml' || 'tests/ci-app-config.yml' }}
+      config-path: .app-config.yml
       runs-on: windows-2025
-      timeout-minutes: ${{ inputs.full && 300 || 60 }}
+      timeout-minutes: 300
