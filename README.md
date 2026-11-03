@@ -24,3 +24,5 @@ Then run `task --list` to discover operations:
 | `task doctor` | Display Scoop health/status and installed WinGet packages |
 
 The Taskfile uses shared PowerShell statements via `vars` and directly imports **Yayaml** to read the user-profile YAML. `install-modules.ps1` stores modules in `$HOME/Tools/PowerShell/Modules`; Scoop lives in `$HOME/Tools/Scoop`. No separate app dispatcher or duplicate package list is used.
+
+Short aliases are available: `task setup` / `task bs`, `task install`, `task reinstall`, `task upgrade`, `task status`, `task prefetch`, `task clean`, and `task check`. Use `task help` to display the list. Namespaced shortcuts include `task apps:i`, `task apps:r`, and `task apps:u`.
