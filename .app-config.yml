@@ -71,7 +71,7 @@ scoop:
       - temurin-lts-jdk
       - temurin8-jdk
     ruchir:
-      - yq-go
+      - yq
       - freefilesync
 
 chocolatey:
