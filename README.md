@@ -38,14 +38,13 @@ GitHub Actions runs the existing bootstrap workflow plus an **offline XML-only**
 
 ## Unattended Windows 11 Pro installation
 
-Both paths render the **same** `unattended/Autounattend.xml.tmpl` and include a copy of the current repository as `bootstrap/`. Setup installs UEFI/GPT Windows 11 Pro, creates a local administrator called `PC`, auto-logs in once, and runs the existing `bootstrap.ps1` / `task bootstrap`. Only after bootstrap exits successfully does it expire `PC`'s temporary password and restart. The next sign-in requires a permanent password. Windows 11 Pro installation media and an appropriate Windows license are required.
+Both paths render the **same** `unattended/Autounattend.xml.tmpl` and include a copy of the current repository as `bootstrap/`. Setup installs UEFI/GPT Windows 11 Pro, creates a local administrator called `PC`, auto-logs in once using a cryptographically generated, disposable password, and runs the existing `bootstrap.ps1` / `task bootstrap`. On successful bootstrap, the handoff resets the password to **blank**, marks it **expired**, and reboots. At the next console sign-in, leave the old-password field empty and choose a permanent password. Windows 11 Pro installation media and an appropriate Windows license are required.
 
 > **Data loss:** the generated answer file **wipes Windows Setup disk 0** by default. On a physical PC, identify the correct Windows Setup/WinPE disk number before booting; set `$env:TARGET_DISK` when rendering if it is not 0. Do not boot this installer on a machine containing data you intend to preserve. The USB-preparation disk is **different** from the Windows installation target.
 
-Generate once per installation, with a disposable password (PowerShell 7.4+):
+Generate the answer file for each installation (PowerShell 7.4+). A strong disposable password is **generated automatically** on every render; no password input is needed or displayed.
 
 ```powershell
-$env:TEMP_PASSWORD = 'Disposable-Strong-Password!'
 $env:COMPUTER_NAME = 'MY-PC'   # optional; otherwise a unique PC-XXXXXXXX
 $env:TARGET_DISK = '0'         # optional; WinPE installation disk number
 task unattended:render
@@ -71,14 +70,13 @@ It first reuses or downloads the ISO, then detects a single non-system USB disk 
 
 ```powershell
 task iso:download
-$env:TEMP_PASSWORD = 'Disposable-Strong-Password!'
 task install:usb
 ```
 
 ISO acquisition remains a standalone Task target, but `install:usb` automatically calls it and skips the download when the ISO exists. For Ubuntu-hosted QEMU, supply a local ISO: Fido officially targets Windows. The installation tasks consume `.cache/windows.iso` or an explicitly supplied path: `task install:vm ISO=/path/to/windows.iso` or `task install:usb ISO=C:/path/to/windows.iso`.
 
-The installed machine must have Internet access for unattended WinGet installation of PowerShell 7 and for the existing Scoop/WinGet bootstrap. FirstLogonCommands disables subsequent auto-logins immediately and schedules the existing bootstrap in the unelevated interactive `PC` session (required by Scoop). See the `PC` user's `AppData\Local\windows-bootstrap.log`. On failure the password **is not expired** and the PC **does not reboot** automatically; fix connectivity/the issue and rerun `C:\windows-bootstrap\unattended\first-logon.ps1` as administrator. On success, the account is marked password-expired before reboot. Keep the USB/secondary ISO connected until the first login stages have completed.
+The installed machine must have Internet access for unattended WinGet installation of PowerShell 7 and for the existing Scoop/WinGet bootstrap. FirstLogonCommands disables subsequent auto-logins immediately and schedules the existing bootstrap in the unelevated interactive `PC` session (required by Scoop). See the `PC` user's `AppData\Local\windows-bootstrap.log`. On failure the password **is not expired** and the PC **does not reboot** automatically; fix connectivity/the issue and rerun `C:\windows-bootstrap\unattended\first-logon.ps1` as administrator. On success, the disposable password is replaced with blank, the account is marked password-expired and the system reboots. A blank password is an intentional, short provisioning transition; keep the machine physically secured until its permanent password is set. Keep the USB/secondary ISO connected until the first login stages have completed.
 
-`Autounattend.xml` contains the **disposable** password in plaintext (required by Windows Setup) and is also cached by Windows Setup. The permanent password is **never collected or written by this repository**. Keep installer media secure, and delete `.cache/` and securely erase/reformat the USB when provisioning is finished. Generated files are Git-ignored.
+`Autounattend.xml` contains the **automatically generated, disposable** password in plaintext (required by Windows Setup) and is also cached by Windows Setup. It is never requested from or revealed to the user. The permanent password is **never collected or written by this repository**. Keep installer media secure, and delete `.cache/` and securely erase/reformat the USB when provisioning is finished. Generated files are Git-ignored.
 
 Validate the rendered XML and lifecycle wiring with `task unattended:render` and `pwsh -File tests/unattended.ps1`. CI only validates XML and task wiring offline, without downloading/building ISOs or preparing USB drives; end-to-end Windows 11 Setup behavior requires a real VM or physical install.

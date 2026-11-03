@@ -30,6 +30,7 @@ do {
 if ($info.LastTaskResult) { throw "Bootstrap failed ($($info.LastTaskResult)); inspect the PC user's AppData\Local\windows-bootstrap.log" }
 Unregister-ScheduledTask -TaskName $name -Confirm:$false
 $user = [ADSI]"WinNT://./PC,user"
+$user.SetPassword("")
 $user.PasswordExpired = 1
 $user.SetInfo()
 Restart-Computer -Force
