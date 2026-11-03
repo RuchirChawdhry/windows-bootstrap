@@ -33,4 +33,3 @@ $user = [ADSI]"WinNT://./PC,user"
 $user.SetPassword("")
 $user.PasswordExpired = 1
 $user.SetInfo()
-Restart-Computer -Force

@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 $env:TEMP_PASSWORD = "Not-Used-By-Renderer!"
 $env:COMPUTER_NAME = "WIN-CI-TEST"
 $env:TARGET_DISK = "0"
-task unattended:render
+task unattended:stage
 [xml]$xml = Get-Content "$PSScriptRoot/../.cache/Autounattend.xml" -Raw
 $ns = [System.Xml.XmlNamespaceManager]::new($xml.NameTable)
 $ns.AddNamespace("u", "urn:schemas-microsoft-com:unattend")
@@ -30,7 +30,7 @@ Assert ($handoff.Contains('SetPassword("")')) "Reset unknown password to blank"
 Assert ($handoff.Contains('PasswordExpired = 1')) "Force permanent password creation"
 Assert ($handoff.IndexOf("LastTaskResult") -lt $handoff.IndexOf('SetPassword("")')) "Only reset password after bootstrap succeeds"
 Assert ($handoff.IndexOf('SetPassword("")') -lt $handoff.IndexOf('PasswordExpired = 1')) "Expire blank password after reset"
-Assert ($handoff.IndexOf('PasswordExpired = 1') -lt $handoff.IndexOf('Restart-Computer -Force')) "Reboot only after password expires"
+Assert (!$handoff.Contains("Restart-Computer") -and !$handoff.Contains("logoff.exe")) "Leave sign-out or reboot to Windows and user"
 $root = Resolve-Path "$PSScriptRoot/.."
 Assert (($xml.SelectNodes("//u:CreatePartition", $ns)).Count -eq 3) "GPT partition count"
 Assert ((& $pick "//u:CreatePartition[u:Order='1']/u:Type") -eq "EFI") "EFI partition"
@@ -43,5 +43,6 @@ Assert (!$taskfile.Contains('$env:TEMP_PASSWORD')) "No user-supplied temporary p
 Assert ($taskfile.Contains('-Lang "^English$"')) "Exact en-US Fido language selection"
 Assert ($taskfile.Contains("aria2c --continue=true")) "Resumable aria2 download"
 Assert ($taskfile.Contains("unattended:stage:")) "Shared unattended media staging task"
+Assert (!$taskfile.Contains("unattended:render:")) "No standalone render task"
 Assert (Test-Path "$root/unattended/bootstrap-user.ps1") "First-login bootstrap script"
 Write-Output "Offline unattended XML and Taskfile configuration validated (no ISO/USB operations)."
