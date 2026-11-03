@@ -1,7 +1,14 @@
 version: '3'
 
+env:
+  SCOOP: '{{.HOME}}/Tools/Scoop'
+
 vars:
-  APPS: pwsh -NoProfile -File scripts/apps.ps1
+  LOAD: >-
+    $ErrorActionPreference = "Stop";
+    $env:Path = "$env:SCOOP/shims;$env:Path";
+    Import-Module "$HOME/Tools/PowerShell/Modules/powershell-yaml";
+    $config = Get-Content "$HOME/.app-config.yml" -Raw | ConvertFrom-Yaml;
 
 tasks:
   default:
@@ -10,74 +17,211 @@ tasks:
       - task --list
 
   bootstrap:
-    desc: Provision package managers, applications, and languages
+    desc: Provision managers, applications, and languages
     cmds:
+      - task: config:init
+      - task: modules:install
       - task: managers:install
       - task: buckets:add
       - task: cache:prefetch
       - task: apps:install
       - task: languages:install
 
-  managers:install:
-    desc: Provision enabled package managers and YAML support
+  config:init:
+    desc: Seed the user-profile config without overwriting it
     cmds:
-      - '{{.APPS}} managers'
+      - >
+        pwsh -NoProfile -Command
+        'if (-not (Test-Path "$HOME/.app-config.yml")) {
+          Copy-Item "{{.ROOT_DIR}}/.app-config.yml" "$HOME/.app-config.yml"
+        }'
+
+  modules:install:
+    desc: Install the YAML PowerShell module
+    cmds:
+      - pwsh -NoProfile -File "{{.ROOT_DIR}}/install-modules.ps1" -Name powershell-yaml
+
+  managers:install:
+    desc: Install enabled package managers and aria2
+    cmds:
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.winget.enabled -and -not (Get-Command winget -EA Ignore)) {
+            & "{{.ROOT_DIR}}/install-modules.ps1" -Name Microsoft.WinGet.Client
+            Repair-WinGetPackageManager -AllUsers
+          }
+          if ($config.scoop.enabled) {
+            if (-not (Get-Command scoop -EA Ignore)) {
+              Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+              irm get.scoop.sh | iex
+            }
+            scoop install git aria2
+          }
+        '
 
   buckets:add:
     desc: Add configured Scoop buckets
     cmds:
-      - '{{.APPS}} buckets'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) {
+            $config.scoop.buckets | ForEach-Object {
+              $bucket = $_
+              $name = ($bucket -like "https://*") ? "ruchir" : $bucket
+              if (-not (Test-Path "$env:SCOOP/buckets/$name")) {
+                if ($name -eq "ruchir") { scoop bucket add $name $bucket }
+                else { scoop bucket add $name }
+              }
+            }
+          }
+        '
 
   apps:install:
-    desc: Install configured apps sequentially
+    desc: Install configured Scoop and WinGet apps sequentially
     cmds:
       - task: apps:scoop
       - task: apps:winget
 
   apps:scoop:
-    desc: Install configured Scoop apps
+    desc: Install Scoop applications
     cmds:
-      - '{{.APPS}} scoop-install'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) {
+            $apps = $config.scoop.apps.GetEnumerator() | ForEach-Object {
+              $bucket = $_.Key
+              $_.Value | ForEach-Object { "$bucket/$_" }
+            }
+            $apps | ForEach-Object { scoop install $_ }
+          }
+        '
 
   apps:winget:
-    desc: Install configured WinGet apps sequentially
+    desc: Install WinGet applications one at a time
     cmds:
-      - '{{.APPS}} winget-install'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.winget.enabled) {
+            $config.winget.apps | ForEach-Object {
+              winget install --id $_ -e --accept-package-agreements --accept-source-agreements --no-upgrade
+            }
+          }
+        '
 
   apps:reinstall:
-    desc: Reinstall configured apps (skips the running Task executable)
+    desc: Force-reinstall configured apps, except the running Task binary
     cmds:
       - task: cache:prefetch
-      - '{{.APPS}} scoop-reinstall'
-      - '{{.APPS}} winget-reinstall'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) {
+            $config.scoop.apps.GetEnumerator() | ForEach-Object {
+              $bucket = $_.Key
+              $_.Value | ForEach-Object { "$bucket/$_" }
+            } | Where-Object { $_ -ne "main/task" } | ForEach-Object { scoop update --force $_ }
+          }
+          if ($config.winget.enabled) {
+            $config.winget.apps | ForEach-Object {
+              winget install --id $_ -e --force --accept-package-agreements --accept-source-agreements
+            }
+          }
+        '
 
   apps:upgrade:
-    desc: Upgrade configured apps
+    desc: Upgrade configured applications
     cmds:
-      - '{{.APPS}} scoop-upgrade'
-      - '{{.APPS}} winget-upgrade'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) {
+            scoop update
+            $config.scoop.apps.GetEnumerator() | ForEach-Object {
+              $bucket = $_.Key
+              $_.Value | ForEach-Object { "$bucket/$_" }
+            } | Where-Object { $_ -ne "main/task" } | ForEach-Object { scoop update $_ }
+          }
+          if ($config.winget.enabled) {
+            $config.winget.apps | ForEach-Object {
+              winget upgrade --id $_ -e --accept-package-agreements --accept-source-agreements
+            }
+          }
+        '
 
   apps:status:
-    desc: Show installed applications
+    desc: List installed applications
     cmds:
-      - '{{.APPS}} status'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) { scoop list }
+          if ($config.winget.enabled) { winget list }
+        '
 
   languages:install:
-    desc: Install configured programming languages via Scoop
+    desc: Install configured languages using Scoop
     cmds:
-      - '{{.APPS}} languages'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) {
+            $config.languages | ForEach-Object { scoop install "main/$_" }
+          }
+        '
 
   cache:prefetch:
     desc: Download Scoop packages concurrently with aria2
     cmds:
-      - '{{.APPS}} prefetch'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) {
+            $apps = $config.scoop.apps.GetEnumerator() | ForEach-Object {
+              $bucket = $_.Key
+              $_.Value | ForEach-Object { "$bucket/$_" }
+            }
+            $apps += $config.languages | ForEach-Object { "main/$_" }
+            $apps | ForEach-Object -Parallel {
+              & "$env:SCOOP/shims/scoop.cmd" download $_
+              if ($LASTEXITCODE) { throw "Download failed: $_" }
+            } -ThrottleLimit 6
+          }
+        '
 
   cache:clear:
     desc: Clear the Scoop download cache
     cmds:
-      - '{{.APPS}} cache-clear'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) { scoop cache rm "*" }
+        '
 
   doctor:
-    desc: Check managers, buckets, and configured installations
+    desc: Check managers and configured applications
     cmds:
-      - '{{.APPS}} doctor'
+      - |
+        pwsh -NoProfile -Command '
+          {{.LOAD}}
+          if ($config.scoop.enabled) {
+            scoop checkup
+            $apps = $config.scoop.apps.GetEnumerator() | ForEach-Object {
+              $bucket = $_.Key
+              $_.Value | ForEach-Object { "$bucket/$_" }
+            }
+            $missing = @($apps + @($config.languages | ForEach-Object { "main/$_" }) |
+              Where-Object { -not (Test-Path "$env:SCOOP/apps/$(($_ -split "/")[-1])/current") })
+            if ($missing.Count) { throw "Missing Scoop apps: $($missing -join ", ")" }
+          }
+          if ($config.winget.enabled) {
+            $config.winget.apps | ForEach-Object {
+              winget list --id $_ -e --accept-source-agreements | Out-Null
+              if ($LASTEXITCODE) { throw "Missing WinGet app: $_" }
+            }
+          }
+          Write-Host "All configured apps are present."
+        '
