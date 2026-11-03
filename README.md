@@ -29,6 +29,6 @@ Short aliases are available: `task setup` / `task bs`, `task install`, `task rei
 
 ## GitHub Actions
 
-[Windows bootstrap](.github/workflows/windows-bootstrap.yml) calls the central [reusable CI workflow](https://github.com/RuchirChawdhry/ci-workflows/blob/main/.github/workflows/windows-bootstrap.yml) on every PR and push to `main`. The smoke job executes the real `bootstrap.ps1` and `Taskfile.yml` on a clean `windows-2025` runner using [the small CI configuration](tests/ci-app-config.yml), then verifies Scoop, Yayaml, the installed packages and Taskfile commands.
+[Windows bootstrap](.github/workflows/windows-bootstrap.yml) calls the central [reusable CI workflow](https://github.com/RuchirChawdhry/ci-workflows/blob/main/.github/workflows/windows-bootstrap.yml) on every PR and push to `main`. The smoke job executes the real `bootstrap.ps1` and `Taskfile.yml` on a clean `windows-2025` runner using the repository's **single** `.app-config.yml`, then verifies Scoop, Yayaml, the installed packages and Taskfile commands.
 
-To attempt the **complete** `.app-config.yml` inventory, open Actions → Windows bootstrap → Run workflow → enable **full**. This installs WinGet and GUI packages as well. Hosted `windows-2025` runs Windows Server 2025 rather than desktop Windows 11, so full GUI / Microsoft Store installs may be unsupported there; a smoke pass does not validate those packages.
+Every CI run provisions the full `.app-config.yml` inventory, including WinGet and GUI packages. Hosted `windows-2025` runs Windows Server 2025 rather than desktop Windows 11; package compatibility may differ, and full provisioning can take substantially longer.
