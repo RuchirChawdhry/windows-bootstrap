@@ -10,7 +10,7 @@ Minimal Windows provisioning with [Task](https://taskfile.dev), PowerShell 7.4+,
 pwsh -NoProfile -File .\\bootstrap.ps1
 ```
 
-Then run `task --list` to discover operations:
+Then run `task help` (or `task --list-all`) to discover operations. The Taskfile disables command echoing globally (`silent: true`), while keeping command output and errors visible:
 
 | Task | Purpose |
 | --- | --- |
