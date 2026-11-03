@@ -10,11 +10,12 @@ Minimal Windows provisioning with [Task](https://taskfile.dev), PowerShell 7.4+,
 pwsh -NoProfile -File .\\bootstrap.ps1
 ```
 
-Then run `task --list` to discover operations:
+Then run `task --list-all` (or `task help`) to discover operations:
 
 | Task | Purpose |
 | --- | --- |
 | `task bootstrap` | Provision managers, buckets, apps and languages |
+| `task speedup` | Apply Windows UI responsiveness optimizations |
 | `task apps:install` | Install configured applications sequentially |
 | `task apps:reinstall` | Force-reinstall configured apps (skips Task itself) |
 | `task apps:upgrade` | Upgrade configured apps |
@@ -22,6 +23,8 @@ Then run `task --list` to discover operations:
 | `task cache:prefetch` | Download Scoop packages concurrently (6 workers, aria2) |
 | `task cache:clear` | Clear Scoop download cache |
 | `task doctor` | Display Scoop health/status and installed WinGet packages |
+
+`task speedup` (aliases: `task optimize`, `task perf`) currently disables window minimize/maximize animations and taskbar animations for the current user. Run it separately from bootstrap; sign out and back in to apply all changes. Future optimizations can be added as `speedup:*` subtasks. It does not alter security, services or power settings.
 
 The Taskfile uses shared PowerShell statements via `vars` and directly imports **Yayaml** to read the user-profile YAML. `install-modules.ps1` stores modules in `$HOME/Tools/PowerShell/Modules`; Scoop lives in `$HOME/Tools/Scoop`. No separate app dispatcher or duplicate package list is used.
 

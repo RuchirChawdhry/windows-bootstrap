@@ -17,7 +17,7 @@ vars:
 tasks:
   default:
     aliases: [help]
-    cmds: [task --list]
+    cmds: [task --list-all]
 
   bootstrap:
     aliases: [setup, bs]
@@ -29,6 +29,23 @@ tasks:
       - task: cache:prefetch
       - task: apps:install
       - task: languages:install
+
+  speedup:
+    desc: Apply Windows responsiveness optimizations
+    aliases: [optimize, perf]
+    cmds:
+      - task: speedup:ui
+
+  speedup:ui:
+    desc: Disable window and taskbar animations
+    silent: true
+    cmds:
+      - |
+        {{.PS}} '
+          New-ItemProperty "HKCU:\Control Panel\Desktop\WindowMetrics" -Name MinAnimate -Value "0" -PropertyType String -Force | Out-Null
+          New-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name TaskbarAnimations -Value 0 -PropertyType DWord -Force | Out-Null
+          Write-Output "UI optimizations applied. Sign out for all changes to take effect."
+        '
 
   config:init:
     aliases: [config, cfg]
@@ -155,7 +172,7 @@ tasks:
           if ($config.scoop.enabled) {
             {{.APPS}}
             $apps += $config.languages | ForEach-Object { "main/$_" }
-            $apps | ForEach-Object -Parallel { scoop download $_ } -ThrottleLimit 6
+            $apps | ForEach-Object -Parallel { pwsh -NoProfile -Command "scoop download '$_'" } -ThrottleLimit 6
           }
         '
 
