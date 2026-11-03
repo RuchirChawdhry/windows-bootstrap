@@ -16,9 +16,11 @@ vars:
 
 tasks:
   default:
+    aliases: [help]
     cmds: [task --list]
 
   bootstrap:
+    aliases: [setup, bs]
     cmds:
       - task: config:init
       - task: modules:install
@@ -29,16 +31,19 @@ tasks:
       - task: languages:install
 
   config:init:
+    aliases: [config, cfg]
     cmds:
       - >-
         {{.PS}} '(Test-Path "$HOME/.app-config.yml") ? $null :
         (Copy-Item "{{.ROOT_DIR}}/.app-config.yml" "$HOME/.app-config.yml")'
 
   modules:install:
+    aliases: [modules, mods]
     cmds:
       - pwsh -NoProfile -File "{{.ROOT_DIR}}/install-modules.ps1" -Name Yayaml
 
   managers:install:
+    aliases: [managers, pm]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -54,6 +59,7 @@ tasks:
         '
 
   buckets:add:
+    aliases: [buckets]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -66,11 +72,13 @@ tasks:
         '
 
   apps:install:
+    aliases: [install, apps:i]
     cmds:
       - task: apps:scoop
       - task: apps:winget
 
   apps:scoop:
+    aliases: [scoop:install]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -81,6 +89,7 @@ tasks:
         '
 
   apps:winget:
+    aliases: [winget:install]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -92,6 +101,7 @@ tasks:
         '
 
   apps:reinstall:
+    aliases: [reinstall, apps:r]
     cmds:
       - task: cache:prefetch
       - |
@@ -106,6 +116,7 @@ tasks:
         '
 
   apps:upgrade:
+    aliases: [upgrade, apps:u]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -120,6 +131,7 @@ tasks:
         '
 
   apps:status:
+    aliases: [status, apps:ls]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -128,6 +140,7 @@ tasks:
         '
 
   languages:install:
+    aliases: [languages, langs]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -135,6 +148,7 @@ tasks:
         '
 
   cache:prefetch:
+    aliases: [prefetch, cache:download]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
@@ -146,10 +160,12 @@ tasks:
         '
 
   cache:clear:
+    aliases: [clean, cache:clean]
     cmds:
       - '{{.PS}} ''{{.LOAD}} scoop cache rm "*"'''
 
   doctor:
+    aliases: [check, health]
     cmds:
       - |
         {{.PS}} '{{.LOAD}}
