@@ -192,6 +192,27 @@ tasks:
           if ($config.winget.enabled) { winget list }
         '
 
+  iso:download:
+    desc: Download latest Windows 11 en-US x64 ISO via Fido and aria2 (Windows)
+    aliases: [iso:get]
+    cmds:
+      - |
+        {{.PS}} '
+          $iso = "{{.ISO}}"
+          if ((Test-Path $iso) -and !(Test-Path "$iso.aria2")) { return }
+          $cache = Split-Path $iso
+          New-Item $cache -ItemType Directory -Force | Out-Null
+          $fido = "{{.ROOT_DIR}}/.cache/Fido.ps1"
+          if (!(Test-Path $fido)) {
+            Invoke-WebRequest "https://raw.githubusercontent.com/pbatard/Fido/master/Fido.ps1" -OutFile $fido
+          }
+          Unblock-File $fido
+          $url = & $fido -Win 11 -Rel Latest -Ed Pro -Lang "^English$" -Arch x64 -GetUrl
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          aria2c --continue=true --max-connection-per-server=8 --split=8 --min-split-size=1M --dir "$cache" --out (Split-Path $iso -Leaf) $url
+          exit $LASTEXITCODE
+        '
+
   unattended:render:
     desc: Render a private Windows answer file from runtime values
     aliases: [unattend:render]
@@ -313,6 +334,7 @@ tasks:
     aliases: [usb:install]
     silent: true
     cmds:
+      - task: iso:download
       - task: unattended:stage
       - task: usb:prepare
       - |
